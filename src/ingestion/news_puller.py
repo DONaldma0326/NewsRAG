@@ -14,7 +14,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-KAFKA_BOOTSTRAP_SERVERS = "localhost:9092"
+KAFKA_BOOTSTRAP_SERVERS = "localhost:19092"
 KAFKA_TOPIC = "news-raw"
 POLL_INTERVAL_SECONDS = 60
 CONFIG_PATH = Path(__file__).parents[2] / "config" / "sources.json"

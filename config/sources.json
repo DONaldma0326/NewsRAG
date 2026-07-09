@@ -24,7 +24,7 @@
     "url": "https://abcnews.go.com/abcnews/topstories"
   },
   {
-    "name": "Reuters",
-    "url": "https://www.reutersagency.com/feed/"
+    "name": "Sky News",
+    "url": "https://feeds.skynews.com/feeds/rss/home.xml"
   }
 ]

@@ -2,6 +2,9 @@
 
 This file defines conventions, structure, and behavior guidelines for AI agents (Claude, Copilot, Cursor, etc.) working on this project. It is application-agnostic — adapt the details below to any similar project.
 
+> [!IMPORTANT]
+> **NEVER commit, push, or create PRs without asking the user first.** Always get explicit approval before any git write operation.
+
 ---
 
 ## 1. Repository Structure

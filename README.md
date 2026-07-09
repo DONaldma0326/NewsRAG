@@ -43,6 +43,9 @@ uv run python src/ingestion/news_puller.py
 uv run python src/ingestion/news_consumer.py
 ```
 
+# submit to Flink cluster
+docker exec -it rag-jobmanager-1 flink run -py /opt/news_printer_job.py
+
 ## Project Structure
 
 ```

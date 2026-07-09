@@ -1,7 +1,7 @@
 import logging
 import os
 
-from pyflink.common import Types
+from pyflink.common import Types, WatermarkStrategy
 from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.datastream.connectors.kafka import (
     KafkaOffsetsInitializer,
@@ -14,7 +14,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "news-raw")
 KAFKA_GROUP_ID = os.getenv("KAFKA_GROUP_ID", "flink-news-printer")
 
@@ -50,7 +50,9 @@ def main():
         .build()
     )
 
-    ds = env.from_source(source, "kafka-news-source")
+    ds = env.from_source(
+        source, WatermarkStrategy.for_monotonous_timestamps(), "kafka-news-source"
+    )
 
     ds.map(lambda row: f"[{row[0]}] {row[1]} — {row[3]}\n    {row[4][:200]}").print()
 
