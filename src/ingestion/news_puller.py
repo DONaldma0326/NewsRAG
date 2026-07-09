@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+import sqlite3
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,6 +19,7 @@ KAFKA_BOOTSTRAP_SERVERS = "localhost:19092"
 KAFKA_TOPIC = "news-raw"
 POLL_INTERVAL_SECONDS = 60
 CONFIG_PATH = Path(__file__).parents[2] / "config" / "sources.json"
+STATE_DB_PATH = Path(__file__).parents[2] / "data" / "ingestion_state.db"
 
 
 def load_sources(path: Path) -> list[dict]:
@@ -43,8 +45,32 @@ def delivery_report(err, msg):
         log.debug("Delivered to %s [%d]", msg.topic(), msg.partition())
 
 
-def pull_and_produce(producer: Producer, sources: list[dict], seen: set) -> int:
+def init_state_store(db_path: Path) -> sqlite3.Connection:
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("CREATE TABLE IF NOT EXISTS seen (id TEXT PRIMARY KEY)")
+    conn.commit()
+    return conn
+
+
+def load_seen(conn: sqlite3.Connection) -> set:
+    rows = conn.execute("SELECT id FROM seen").fetchall()
+    return {row[0] for row in rows}
+
+
+def save_new_ids(conn: sqlite3.Connection, article_ids: set):
+    conn.executemany(
+        "INSERT OR IGNORE INTO seen (id) VALUES (?)",
+        [(aid,) for aid in article_ids],
+    )
+    conn.commit()
+
+
+def pull_and_produce(
+    producer: Producer, sources: list[dict], seen: set, conn: sqlite3.Connection
+) -> int:
     count = 0
+    new_ids: set = set()
     for source in sources:
         name = source["name"]
         url = source["url"]
@@ -64,6 +90,7 @@ def pull_and_produce(producer: Producer, sources: list[dict], seen: set) -> int:
             if article_id in seen:
                 continue
             seen.add(article_id)
+            new_ids.add(article_id)
 
             msg = normalize_entry(name, entry)
             producer.produce(
@@ -75,6 +102,8 @@ def pull_and_produce(producer: Producer, sources: list[dict], seen: set) -> int:
             count += 1
 
     producer.flush()
+    if new_ids:
+        save_new_ids(conn, new_ids)
     return count
 
 
@@ -82,12 +111,15 @@ def main():
     sources = load_sources(CONFIG_PATH)
     log.info("Loaded %d news sources", len(sources))
 
+    conn = init_state_store(STATE_DB_PATH)
+    seen = load_seen(conn)
+    log.info("Loaded %d previously seen articles from state store", len(seen))
+
     producer = Producer({"bootstrap.servers": KAFKA_BOOTSTRAP_SERVERS})
-    seen: set = set()
 
     log.info("Starting news puller (poll interval: %ds)", POLL_INTERVAL_SECONDS)
     while True:
-        count = pull_and_produce(producer, sources, seen)
+        count = pull_and_produce(producer, sources, seen, conn)
         log.info("Produced %d new articles", count)
         time.sleep(POLL_INTERVAL_SECONDS)
 

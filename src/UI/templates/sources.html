@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="sources-container">
+  <h4 class="mb-4">News Sources</h4>
+
+  {% for src in sources %}
+  <div class="source-card" id="source-{{ loop.index }}">
+    <div class="source-header">
+      <div>
+        <div class="source-name">{{ src.name }}</div>
+        <div class="source-url">{{ src.url }}</div>
+        <div class="source-stats">
+          <span id="status-{{ loop.index }}">
+            {% if src.last_success %}
+              <span class="status-dot online"></span> Online
+            {% elif src.last_run %}
+              <span class="status-dot offline"></span> Error
+            {% else %}
+              <span class="status-dot idle"></span> Idle
+            {% endif %}
+          </span>
+          <span id="count-{{ loop.index }}">{{ src.article_count }} articles</span>
+          <span id="last-{{ loop.index }}">
+            {% if src.last_success %}
+              Last: {{ src.last_success[:16] }}
+            {% endif %}
+          </span>
+        </div>
+        {% if src.error %}
+        <div class="text-danger" style="font-size:12px;margin-top:4px">{{ src.error }}</div>
+        {% endif %}
+      </div>
+      <div class="source-actions">
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" role="switch"
+                 id="toggle-{{ loop.index }}"
+                 {{ 'checked' if src.enabled else '' }}
+                 onchange="toggleSource('{{ src.name }}', this.checked)">
+        </div>
+        <span class="text-muted" style="font-size:13px">Pull every</span>
+        <input class="form-control form-control-sm interval-input" type="number"
+               id="interval-{{ loop.index }}"
+               value="{{ src.interval }}" min="10" max="3600"
+               onchange="updateInterval('{{ src.name }}', this.value)">
+        <span class="text-muted" style="font-size:13px">s</span>
+        <button class="btn btn-outline-secondary btn-test" onclick="testSource('{{ src.name }}', {{ loop.index }})">
+          Test
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+  async function toggleSource(name, enabled) {
+    await fetch('/api/sources/' + encodeURIComponent(name) + '/toggle', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({enabled})
+    });
+  }
+
+  async function updateInterval(name, interval) {
+    const val = parseInt(interval) || 60;
+    await fetch('/api/sources/' + encodeURIComponent(name) + '/interval', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({interval: val})
+    });
+  }
+
+  async function testSource(name, idx) {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = 'Testing...';
+
+    const res = await fetch('/api/sources/' + encodeURIComponent(name) + '/test', {
+      method: 'POST'
+    });
+    const data = await res.json();
+
+    document.getElementById('status-' + idx).innerHTML = data.success
+      ? '<span class="status-dot online"></span> Online'
+      : '<span class="status-dot offline"></span> Error';
+    document.getElementById('count-' + idx).textContent = data.article_count + ' articles';
+    document.getElementById('last-' + idx).textContent = 'Just now';
+
+    btn.disabled = false;
+    btn.textContent = 'Test';
+  }
+</script>
+{% endblock %}

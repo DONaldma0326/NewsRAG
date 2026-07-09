@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="chat-layout">
+
+  <!-- Sidebar -->
+  <div class="chat-sidebar">
+    <div class="sidebar-header">
+      <button class="btn btn-dark w-100" onclick="createChat()">+ New Chat</button>
+    </div>
+    <div class="chat-list" id="chat-list">
+      {% for c in chats %}
+      <a class="chat-item {{ 'active' if active_chat and c.id == active_chat.id else '' }}"
+         href="/chat/{{ c.id }}">
+        <div class="title">{{ c.title }}</div>
+        <div class="preview">{{ c.preview or 'No messages' }}</div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="chat-main">
+    {% if active_chat %}
+    <div class="chat-messages" id="chat-messages">
+      {% for msg in active_chat.messages %}
+      <div class="chat-bubble {{ msg.role }}">
+        {{ msg.content | replace('\n', '<br>') | safe }}
+        <div class="timestamp">{{ msg.timestamp[:16] }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="chat-input-area">
+      <form id="chat-form" onsubmit="sendMessage(event)">
+        <input class="form-control" id="msg-input" placeholder="Ask about the news ..." autofocus>
+        <button class="btn btn-dark" type="submit">Send</button>
+      </form>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <h5>Welcome to NewsRAG</h5>
+      <p class="text-muted">Select a chat or create a new one to get started.</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+  const chatId = '{{ active_chat.id if active_chat else "" }}';
+  const msgInput = document.getElementById('msg-input');
+  const msgArea = document.getElementById('chat-messages');
+
+  function scrollDown() {
+    if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
+  }
+
+  async function sendMessage(e) {
+    e.preventDefault();
+    const content = msgInput.value.trim();
+    if (!content) return;
+    msgInput.value = '';
+    msgInput.disabled = true;
+
+    // show user bubble
+    addBubble('user', content);
+    scrollDown();
+
+    // send to API
+    const res = await fetch('/api/chats/' + chatId + '/messages', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({content})
+    });
+    const chat = await res.json();
+
+    // show assistant bubble
+    const msgs = chat.messages;
+    addBubble('assistant', msgs[msgs.length - 1].content);
+    scrollDown();
+    msgInput.disabled = false;
+    msgInput.focus();
+  }
+
+  function addBubble(role, content) {
+    const div = document.createElement('div');
+    div.className = 'chat-bubble ' + role;
+    div.innerHTML = content.replace(/\n/g, '<br>');
+    msgArea.appendChild(div);
+  }
+
+  async function createChat() {
+    const res = await fetch('/api/chats', {method: 'POST'});
+    const chat = await res.json();
+    window.location.href = '/chat/' + chat.id;
+  }
+
+  scrollDown();
+</script>
+{% endblock %}

@@ -22,7 +22,7 @@ RSS feeds ──► news_puller.py ──► Kafka (topic: news-raw) ──► P
 | Package manager | `uv` |
 | Stream processing | PyFlink (Apache Flink) |
 | Message broker | Apache Kafka |
-| Web UI | TBD |
+| Web UI | FastAPI + Jinja2 + Bootstrap 5 |
 | Infra | Docker Compose |
 
 ## Getting Started
@@ -41,10 +41,13 @@ uv run python src/ingestion/news_puller.py
 
 # Verify with a local consumer
 uv run python src/ingestion/news_consumer.py
-```
 
-# submit to Flink cluster
-docker exec -it rag-jobmanager-1 flink run -py /opt/news_printer_job.py
+# Start the Web UI (from src/)
+cd src && uv run uvicorn api.main:app --reload --port 8000
+# Or use the helper script:
+./scripts/run_ui.sh
+# Open http://localhost:8000
+```
 
 ## Project Structure
 
@@ -57,15 +60,17 @@ docker exec -it rag-jobmanager-1 flink run -py /opt/news_printer_job.py
 ├── docker/
 │   └── Dockerfile.flink    # Flink image with Kafka connector
 ├── src/
+│   ├── api/                # FastAPI routes and chat/source store
+│   ├── UI/                 # Jinja2 templates + static CSS
 │   ├── ingestion/          # RSS → Kafka pipeline
 │   ├── streaming/          # PyFlink stream processing jobs
 │   ├── RAG/                # Retrieval pipeline (WIP)
-│   ├── UI/                 # Web interface (WIP)
-│   ├── api/                # REST layer (WIP)
 │   └── common/             # Shared utilities
+├── data/                   # Runtime data (chat history, source status)
 └── tests/
 ```
 
-## License
+## Web UI
 
-MIT
+- **Chat page** — conversation with the AI agent, chat history in sidebar, create new chats
+- **Sources page** — toggle news sources on/off, configure pull intervals, test feed connectivity
