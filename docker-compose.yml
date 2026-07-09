@@ -19,8 +19,25 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
+  kafka-setup:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - kafka
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        echo "Waiting for Kafka to be ready ..."
+        cub kafka-ready -b kafka:9092 1 30
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic news-raw --partitions 3 --replication-factor 1
+        echo "Topic 'news-raw' created."
+        sleep infinity
+
   jobmanager:
-    image: apache/flink:latest
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.flink
     ports:
       - "8081:8081"
     command: jobmanager
@@ -28,7 +45,9 @@ services:
       - JOB_MANAGER_RPC_ADDRESS=jobmanager
 
   taskmanager:
-    image: apache/flink:latest
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.flink
     depends_on:
       - jobmanager
     command: taskmanager
