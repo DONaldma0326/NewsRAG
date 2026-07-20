@@ -46,19 +46,22 @@ def get_chat(chat_id: str) -> dict | None:
     return _load().get(chat_id)
 
 
-def add_message(chat_id: str, role: str, content: str) -> dict | None:
+def add_message(
+    chat_id: str, role: str, content: str, metadata: dict | None = None
+) -> dict | None:
     data = _load()
     chat = data.get(chat_id)
     if not chat:
         return None
     if role == "user" and chat["title"] == "New Chat":
         chat["title"] = content[:50]
-    chat["messages"].append(
-        {
-            "role": role,
-            "content": content,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-    )
+    msg = {
+        "role": role,
+        "content": content,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    if metadata:
+        msg["metadata"] = metadata
+    chat["messages"].append(msg)
     _save(data)
     return chat

@@ -7,6 +7,7 @@ from starlette.responses import RedirectResponse
 from starlette.templating import Jinja2Templates
 
 from api.routes import router
+from api.sources import start_metrics_consumer
 
 app = FastAPI(title="NewsRAG")
 
@@ -21,6 +22,11 @@ app.state.templates = templates
 
 app.mount("/static", StaticFiles(directory=str(UI_DIR / "static")), name="static")
 app.include_router(router)
+
+
+@app.on_event("startup")
+async def startup():
+    start_metrics_consumer()
 
 
 @app.get("/")

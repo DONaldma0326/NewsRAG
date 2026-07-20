@@ -26,7 +26,21 @@ services:
         cub kafka-ready -b kafka:9092 1 30
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists \
           --topic news-raw --partitions 3 --replication-factor 1
-        echo "Topic 'news-raw' created."
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic news-chunks --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic news-metrics --partitions 1 --replication-factor 1
+        echo "Topics created."
+
+  chromadb:
+    image: chromadb/chroma:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma-data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
 
   jobmanager:
     build:
@@ -37,8 +51,15 @@ services:
     command: jobmanager
     environment:
       - JOB_MANAGER_RPC_ADDRESS=jobmanager
+      - PYTHONPATH=/opt/src
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
     volumes:
       - ./src:/opt/src
+    extra_hosts:
+      - host.docker.internal:host-gateway
 
   taskmanager:
     build:
@@ -49,5 +70,15 @@ services:
     command: taskmanager
     environment:
       - JOB_MANAGER_RPC_ADDRESS=jobmanager
+      - PYTHONPATH=/opt/src
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
     volumes:
       - ./src:/opt/src
+    extra_hosts:
+      - host.docker.internal:host-gateway
+
+volumes:
+  chroma-data:

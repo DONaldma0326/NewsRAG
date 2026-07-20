@@ -27,6 +27,12 @@
       <div class="chat-bubble {{ msg.role }}">
         {{ msg.content | replace('\n', '<br>') | safe }}
         <div class="timestamp">{{ msg.timestamp[:16] }}</div>
+        {% if msg.role == "assistant" and msg.metadata %}
+        <details class="trace-panel" data-trace='{{ msg.metadata | tojson | safe }}'>
+          <summary>Show trace</summary>
+          <div class="trace-content"></div>
+        </details>
+        {% endif %}
       </div>
       {% endfor %}
     </div>
@@ -62,11 +68,9 @@
     msgInput.value = '';
     msgInput.disabled = true;
 
-    // show user bubble
     addBubble('user', content);
     scrollDown();
 
-    // send to API
     const res = await fetch('/api/chats/' + chatId + '/messages', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -74,19 +78,48 @@
     });
     const chat = await res.json();
 
-    // show assistant bubble
     const msgs = chat.messages;
-    addBubble('assistant', msgs[msgs.length - 1].content);
+    const last = msgs[msgs.length - 1];
+    addBubble('assistant', last.content, last.metadata);
     scrollDown();
     msgInput.disabled = false;
     msgInput.focus();
   }
 
-  function addBubble(role, content) {
+  function addBubble(role, content, metadata) {
     const div = document.createElement('div');
     div.className = 'chat-bubble ' + role;
     div.innerHTML = content.replace(/\n/g, '<br>');
+
+    if (role === 'assistant' && metadata) {
+      const details = document.createElement('details');
+      details.className = 'trace-panel';
+      const summary = document.createElement('summary');
+      summary.textContent = 'Show trace';
+      details.appendChild(summary);
+      const traceDiv = document.createElement('div');
+      traceDiv.className = 'trace-content';
+      traceDiv.textContent = formatTrace(metadata);
+      details.appendChild(traceDiv);
+      div.appendChild(details);
+    }
+
     msgArea.appendChild(div);
+  }
+
+  function formatTrace(t) {
+    const lines = [];
+    if (t.k) lines.push(`k=${t.k}`);
+    if (t.time_embed_ms) lines.push(`Embed: ${t.time_embed_ms.toFixed(0)}ms`);
+    if (t.time_retrieve_ms) lines.push(`Search: ${t.time_retrieve_ms.toFixed(0)}ms`);
+    if (t.time_generate_ms) lines.push(`Generate: ${t.time_generate_ms.toFixed(0)}ms`);
+    if (t.total_ms) lines.push(`Total: ${t.total_ms.toFixed(0)}ms`);
+    if (t.model) lines.push(`Model: ${t.model}`);
+    if (t.tokens) lines.push(`Tokens: ${t.tokens}`);
+    lines.push('');
+    lines.push('── Prompt ──');
+    lines.push(t.prompt || '(empty)');
+    return lines.join('\n');
   }
 
   async function createChat() {
@@ -94,6 +127,18 @@
     const chat = await res.json();
     window.location.href = '/chat/' + chat.id;
   }
+
+  // Wire up existing trace panels from server-rendered messages
+  document.querySelectorAll('.trace-panel[data-trace]').forEach(el => {
+    const summary = el.querySelector('summary');
+    const content = el.querySelector('.trace-content');
+    summary.addEventListener('click', () => {
+      if (!content.textContent) {
+        const trace = JSON.parse(el.getAttribute('data-trace'));
+        content.textContent = formatTrace(trace);
+      }
+    });
+  });
 
   scrollDown();
 </script>

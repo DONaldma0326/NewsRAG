@@ -13,9 +13,11 @@ This file defines conventions, structure, and behavior guidelines for AI agents 
 /
 ├── AGENTS.md           # This file
 ├── pyproject.toml       # Project metadata, dependencies, tool config
-├── docker-compose.yml   # Local infrastructure (Kafka, Flink, etc.)
+├── docker-compose.yml   # Local infrastructure (Kafka, Flink, ChromaDB)
 ├── Dockerfile           # App container
 ├── config/              # Runtime configuration files
+│   └── sources.json     # RSS feed sources
+├── data/                # Runtime data (chat history, state, metrics)
 ├── scripts/             # Utility scripts (setup, migrate, seed)
 ├── tests/               # All tests, mirroring src/ structure
 │   └── <module>/
@@ -23,12 +25,33 @@ This file defines conventions, structure, and behavior guidelines for AI agents 
 ├── docker/              # Docker support files (Dockerfiles, init scripts)
 └── src/
     ├── __init__.py
-    ├── UI/              # Web interface (Streamlit, Gradio, etc.)
-    ├── RAG/             # Retrieval-Augmented Generation pipeline
+    ├── UI/              # Web interface (FastAPI + Jinja2 templates)
+    │   ├── static/
+    │   └── templates/
+    ├── RAG/             # LangGraph-based RAG pipeline
+    │   ├── graph.py     # LangGraph StateGraph definition
+    │   ├── pipeline.py  # Entry point (answer())
+    │   ├── embedder.py  # LangChain OllamaEmbeddings wrapper
+    │   ├── retriever.py # LangChain Chroma retriever
+    │   ├── reranker.py  # Cross-encoder / score reranking
+    │   ├── generator.py # LangChain ChatOllama generation
+    │   └── vector_store.py  # ChromaDB HTTP client (used by Flink + API)
     ├── streaming/       # PyFlink stream processing jobs
+    │   └── news_pipeline_job.py  # Chunk + embed + store + metrics
     ├── ingestion/       # Data ingestion from news sources
-    ├── api/             # REST/API layer
+    │   ├── news_puller.py    # RSS poller → Kafka (news-raw)
+    │   └── news_consumer.py  # Debug consumer (optional)
+    ├── api/             # FastAPI REST/UI layer
+    │   ├── main.py      # App setup
+    │   ├── routes.py    # HTTP endpoints
+    │   ├── chat.py      # Chat CRUD (JSON file store)
+    │   └── sources.py   # Source config + status
     └── common/          # Shared utilities, models, config
+        ├── config.py
+        ├── exceptions.py
+        ├── health.py
+        ├── models.py
+        └── text_splitter.py
 ```
 
 ### Principles
@@ -47,8 +70,11 @@ This file defines conventions, structure, and behavior guidelines for AI agents 
 | Build system    | `pyproject.toml`              |
 | Stream process  | PyFlink (Apache Flink)        |
 | Message broker  | Apache Kafka                   |
-| Vector store    | To be decided                 |
-| Web UI          | To be decided (Streamlit/...) |
+| Vector store    | ChromaDB (HTTP API)           |
+| RAG framework   | LangGraph + LangChain         |
+| LLM             | Ollama (llama3.1)             |
+| Emb.model       | BAAI/bge-small-en-v1.5        |
+| Web UI          | FastAPI + Jinja2              |
 | Infra           | Docker Compose (local dev)    |
 | Testing         | pytest                        |
 | Formatting      | Black                         |
@@ -71,6 +97,21 @@ This file defines conventions, structure, and behavior guidelines for AI agents 
 - One class per file (unless closely related).
 - Module `__init__.py` may re-export key symbols for a clean public API.
 - Configuration lives in `config/`, not hardcoded.
+
+### Data Pipeline
+
+```
+RSS sources → [news_puller] → Kafka news-raw → [Flink: news_pipeline_job] → ChromaDB
+                                                                              ↓
+                                                                        Kafka news-metrics
+                                                                              ↓
+User query → [LangGraph: rewrite → retrieve → rerank → generate] → Answer + trace
+```
+
+- **Ingestion**: `news_puller.py` polls RSS feeds, publishes articles to Kafka topic `news-raw`.
+- **Streaming**: `news_pipeline_job.py` (PyFlink) reads `news-raw`, chunks articles, embeds via Ollama API, writes to ChromaDB, and emits source-level metrics to Kafka topic `news-metrics`.
+- **RAG**: LangGraph `StateGraph` with four nodes: `rewrite_query` (rephrase with chat history), `retrieve` (ChromaDB vector search), `rerank` (score reordering), `generate` (Ollama LLM call). Chat history is part of graph state.
+- **API**: FastAPI serves Jinja2 web UI, manages chat sessions (JSON file store), reads monitoring stats from `news-metrics` topic.
 
 ### Testing
 - Use pytest exclusively.

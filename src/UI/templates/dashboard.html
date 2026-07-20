@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-container">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h4 class="mb-0">Pipeline Dashboard</h4>
+    <span id="overall-status" class="status-badge ok">Checking...</span>
+  </div>
+  <div class="dashboard-grid" id="dash-grid">
+    <div class="dash-card"><div class="card-body text-muted">Loading...</div></div>
+  </div>
+  <p class="text-muted small mt-2 mb-0">Auto-refreshes every 10s</p>
+</div>
+
+<script>
+  async function refreshDashboard() {
+    try {
+      const res = await fetch('/api/health');
+      const data = await res.json();
+      renderCards(data);
+    } catch (e) {
+      document.getElementById('dash-grid').innerHTML = '<div class="dash-card"><div class="card-body text-danger">Failed to fetch health data</div></div>';
+    }
+  }
+
+  function renderCards(data) {
+    const grid = document.getElementById('dash-grid');
+    const overall = document.getElementById('overall-status');
+    const allOk = Object.values(data).every(c => c.ok);
+    overall.textContent = allOk ? 'All OK' : 'Issues Detected';
+    overall.className = 'status-badge ' + (allOk ? 'ok' : 'fail');
+
+    const cards = [
+      { id: 'kafka',      title: 'Kafka',        icon: '🔗', fields: ['topics'] },
+      { id: 'chromadb',   title: 'ChromaDB',     icon: '🗄️', fields: ['collections', 'vectors'] },
+      { id: 'ollama',     title: 'Ollama',       icon: '🤖', fields: ['models', 'has_target_model'] },
+      { id: 'flink',      title: 'Flink',        icon: '📊', fields: ['taskmanagers', 'slots_available', 'slots_total', 'jobs'] },
+      { id: 'ingestion',  title: 'Ingestion',    icon: '📡', fields: ['sources', 'total_articles', 'last_run'] },
+    ];
+
+    grid.innerHTML = cards.map(c => {
+      const d = data[c.id];
+      if (!d) return '';
+      return `
+        <div class="dash-card">
+          <div class="card-header">
+            <span class="card-title">${c.icon} ${c.title}</span>
+            <span class="status-badge ${d.ok ? 'ok' : 'fail'}">${d.ok ? 'OK' : 'FAIL'}</span>
+          </div>
+          <div class="card-body">
+            ${d.error ? `<div class="text-danger small mb-2">${d.error}</div>` : ''}
+            <dl>${c.fields.map(f => {
+              const val = d[f];
+              if (val === undefined || val === null) return '';
+              const display = typeof val === 'object' ? JSON.stringify(val) : String(val);
+              return `<dt>${f.replace(/_/g, ' ')}</dt><dd>${display}</dd>`;
+            }).join('')}</dl>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  refreshDashboard();
+  setInterval(refreshDashboard, 10000);
+</script>
+{% endblock %}

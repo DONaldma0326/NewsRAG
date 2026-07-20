@@ -1,3 +1,5 @@
+import dataclasses
+import logging
 import time
 from pathlib import Path
 
@@ -8,13 +10,14 @@ from pydantic import BaseModel
 
 from api.chat import add_message, create_chat, get_chat, list_chats
 from api.sources import get_sources, record_run, toggle_source, update_interval
+from common.models import RAGResult
+from RAG.pipeline import answer as rag_answer
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
 UI_DIR = Path(__file__).parents[1] / "UI"
-
-
-# ── Page routes ──────────────────────────────────────────
 
 
 @router.get("/chat")
@@ -35,9 +38,6 @@ def sources_page(request: Request):
     return _render(request, "sources.html", {"sources": get_sources()})
 
 
-# ── Chat API ──────────────────────────────────────────────
-
-
 @router.post("/api/chats")
 def api_create_chat():
     chat = create_chat()
@@ -51,12 +51,9 @@ def api_send_message(chat_id: str, body: dict):
     if not chat:
         return JSONResponse({"error": "Chat not found"}, status_code=404)
 
-    response_text = _generate_reply(content)
-    chat = add_message(chat_id, "assistant", response_text)
+    response_text, trace = _generate_reply(content, chat_id)
+    chat = add_message(chat_id, "assistant", response_text, metadata=trace)
     return JSONResponse(chat)
-
-
-# ── Sources API ───────────────────────────────────────────
 
 
 class ToggleBody(BaseModel):
@@ -77,6 +74,19 @@ def api_toggle_source(name: str, body: ToggleBody):
 def api_interval_source(name: str, body: IntervalBody):
     update_interval(name, body.interval)
     return JSONResponse({"ok": True})
+
+
+@router.get("/dashboard")
+def dashboard_page(request: Request):
+    return _render(request, "dashboard.html", {})
+
+
+@router.get("/api/health")
+async def api_health():
+    from common.health import check_all
+
+    result = await check_all()
+    return JSONResponse(result)
 
 
 @router.post("/api/sources/{name}/test")
@@ -104,17 +114,23 @@ def api_test_source(name: str):
     )
 
 
-# ── Helpers ───────────────────────────────────────────────
-
-
 def _render(request: Request, template: str, context: dict):
     templates = request.app.state.templates
     return templates.TemplateResponse(request, template, context)
 
 
-def _generate_reply(user_msg: str) -> str:
-    return (
-        f"This is a simulated response. Your RAG pipeline will "
-        f"replace this with real answers grounded in news articles.\n\n"
-        f"> *You asked: {user_msg}*"
-    )
+def _generate_reply(
+    user_msg: str, chat_id: str | None = None
+) -> tuple[str, dict | None]:
+    history = None
+    if chat_id:
+        chat = get_chat(chat_id)
+        if chat:
+            history = chat.get("messages", [])
+    try:
+        result: RAGResult = rag_answer(user_msg, history)
+        trace = dataclasses.asdict(result.trace) if result.trace else None
+        return result.answer, trace
+    except Exception as e:
+        log.error("RAG pipeline error: %s", e)
+        return "Sorry, I encountered an error processing your request.", None

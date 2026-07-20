@@ -204,6 +204,95 @@ body {
 .status-dot.offline { background: #ef4444; }
 .status-dot.idle { background: #f59e0b; }
 
+/* ── Trace Panel ────────────────────────────────────── */
+
+.trace-panel {
+  margin-top: 8px;
+  font-size: 12px;
+  background: #f8f8fc;
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+.trace-panel summary {
+  cursor: pointer;
+  color: #666;
+  font-weight: 500;
+  font-size: 12px;
+}
+.trace-content {
+  margin-top: 6px;
+  padding: 8px;
+  background: #fff;
+  border-radius: 6px;
+  border: 1px solid #eee;
+  max-height: 400px;
+  overflow-y: auto;
+  font-family: monospace;
+  white-space: pre-wrap;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* ── Dashboard ──────────────────────────────────────── */
+
+.dashboard-container {
+  max-width: 900px;
+  margin: 32px auto;
+  padding: 0 16px;
+}
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+.dash-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.dash-card .card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.dash-card .card-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+.dash-card .card-body {
+  font-size: 13px;
+  color: #555;
+}
+.dash-card .card-body dt {
+  font-weight: 600;
+  color: #333;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-top: 4px;
+}
+.dash-card .card-body dd {
+  margin-left: 0;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+.status-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.status-badge.ok {
+  background: #dcfce7;
+  color: #166534;
+}
+.status-badge.fail {
+  background: #fce8e8;
+  color: #991b1b;
+}
+
 /* ── Misc ────────────────────────────────────────────── */
 
 .btn-test {
